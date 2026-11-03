@@ -1,0 +1,13 @@
+{
+  "identifier": "aiagentcycle-gnv-catalog",
+  "name": "Good Nature Vibe Catalog",
+  "version": "0.1.0",
+  "author": "Good Nature Vibe",
+  "authorUrl": "https://github.com/aiagentcycle",
+  "category": "tools",
+  "cloudEndpoint": "https://catalog-mcp.goodnaturevibe.com/mcp",
+  "description": "Search the public Good Nature Vibe product catalog and knowledge base through six read-only tools, with no login, cart, checkout, orders, payments or transactions.",
+  "homepage": "https://github.com/aiagentcycle/gnv-catalog-mcp",
+  "icon": "https://catalog-mcp.goodnaturevibe.com/icon-192.png",
+  "tags": ["catalog", "products", "knowledge", "search", "read-only"]
+}
