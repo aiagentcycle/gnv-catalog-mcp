@@ -1,0 +1,32 @@
+[Unit]
+Description=Good Nature Vibe Catalog MCP (read-only)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=gnvcatalog
+Group=gnvcatalog
+WorkingDirectory=/opt/gnv-catalog-mcp/app
+EnvironmentFile=/etc/gnv-catalog-mcp/env
+ExecStart=/usr/bin/node /opt/gnv-catalog-mcp/app/src/main.js
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+MemoryMax=256M
+LogsDirectory=gnv-catalog-mcp
+ReadWritePaths=/var/log/gnv-catalog-mcp
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

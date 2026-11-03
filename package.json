@@ -1,0 +1,21 @@
+{
+  "name": "gnv-catalog-mcp",
+  "version": "0.1.0",
+  "description": "Public read-only MCP server for the Good Nature Vibe shop catalog and knowledge.",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "main": "src/main.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node src/main.js",
+    "test": "node --test test/",
+    "test:node22": "node --test test/*.test.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aiagentcycle/gnv-catalog-mcp.git"
+  }
+}
