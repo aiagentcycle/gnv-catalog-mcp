@@ -103,7 +103,7 @@ test("tools/call: echte aanroepen via de nep-shop", async () => {
 });
 
 test("tools/call met een onbekende tool geeft een JSON-RPC-fout", async () => {
-  const reply = await rpc({ jsonrpc: "2.0", id: 20, method: "tools/call", params: { name: "gnv_checkout_place", arguments: {} } });
+  const reply = await rpc({ jsonrpc: "2.0", id: 20, method: "tools/call", params: { name: "gnv_not_a_tool", arguments: {} } });
   assert.equal(reply.status, 200);
   assert.equal(reply.json.id, 20);
   assert.equal(reply.json.error.code, -32602);
@@ -166,12 +166,18 @@ test("Server Card en ai-catalog met juist type en CORS", async () => {
   const parsed = JSON.parse(card.body);
   assert.equal(parsed.name, "com.goodnaturevibe/catalog");
   assert.equal(parsed.remotes[0].url, "https://catalog-mcp.goodnaturevibe.com/mcp");
-  const preflight = await request({ method: "OPTIONS", path: "/mcp/server-card", headers: { origin: "https://example.org", "access-control-request-method": "GET" } });
-  assert.equal(preflight.status, 204);
-  assert.equal(preflight.headers["access-control-allow-origin"], "*");
+  const wellKnown = await request({ path: "/.well-known/mcp/server-card.json" });
+  assert.equal(wellKnown.status, 200);
+  assert.equal(wellKnown.headers["content-type"], "application/mcp-server-card+json");
+  assert.deepEqual(JSON.parse(wellKnown.body), parsed);
+  for (const path of ["/mcp/server-card", "/.well-known/mcp/server-card.json"]) {
+    const preflight = await request({ method: "OPTIONS", path, headers: { origin: "https://example.org", "access-control-request-method": "GET" } });
+    assert.equal(preflight.status, 204);
+    assert.equal(preflight.headers["access-control-allow-origin"], "*");
+  }
   const catalog = await request({ path: "/.well-known/ai-catalog.json" });
   assert.equal(catalog.headers["content-type"], "application/ai-catalog+json");
-  assert.equal(JSON.parse(catalog.body).entries[0].url, "https://catalog-mcp.goodnaturevibe.com/mcp/server-card");
+  assert.equal(JSON.parse(catalog.body).entries[0].url, "https://catalog-mcp.goodnaturevibe.com/.well-known/mcp/server-card.json");
 });
 
 test("llms.txt, robots.txt, icoon, redirect op / en 404 voor de rest", async () => {

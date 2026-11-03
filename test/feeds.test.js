@@ -110,7 +110,7 @@ test("kennis: volledige tekst van de publieke pagina, terugval op de feedtekst",
   await assert.rejects(knowledge.get("nl", "../x", AS_OF), (error) => error.code === "bad_id");
 });
 
-test("api: zelfde uitvoer als de leestools van de commerce-MCP", async () => {
+test("api: de zes publieke leestools geven het verwachte resultaat", async () => {
   const { fetchImpl } = fakeShop();
   const { api, stats } = createRuntime(readConfig({}), fetchImpl);
   const search = await api.gnv_catalog_search({ query: "olie" });
@@ -145,7 +145,8 @@ test("api: zelfde uitvoer als de leestools van de commerce-MCP", async () => {
   assert.deepEqual(profile.stores, ["nl", "en", "fr", "es", "de"]);
   assert.equal(profile.source, "merchant-profile");
   assert.equal(profile.capabilities.checkout, "not-on-this-server");
-  assert.ok(profile.capabilities.commerce_mcp.startsWith("com.goodnaturevibe/commerce"));
+  assert.equal(profile.capabilities.selfRegistration, false);
+  assert.equal("commerce_mcp" in profile.capabilities, false);
   const contact = await api.gnv_contact({});
   assert.deepEqual(Object.keys(contact), ["name", "website", "path", "as_of", "source"]);
   assert.equal(contact.path, "/contact");

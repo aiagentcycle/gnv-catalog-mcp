@@ -23,11 +23,14 @@ test("geen agentId, geen geheim, geen schrijvende tool", () => {
     assert.ok(!tool.inputSchema.required.includes("agentId"));
     assert.equal(tool.inputSchema.additionalProperties, false);
     assert.deepEqual(tool.annotations, { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false });
-    assert.doesNotMatch(JSON.stringify(tool), /secret|cart|checkout_place|agentId/i);
+    assert.doesNotMatch(
+      JSON.stringify(tool),
+      /secret|agentId|checkout_place|cart_create|cart_update|order_create|payment_create/i,
+    );
   }
 });
 
-test("titels, beschrijvingen en argumentdocumentatie zoals in de commerce-MCP", () => {
+test("titels, beschrijvingen en argumentdocumentatie zijn compleet", () => {
   for (const tool of TOOLS) {
     assert.ok(tool.title, `${tool.name} zonder titel`);
     assert.ok(tool.description.includes(" NL: "), `${tool.name} zonder NL-deel`);

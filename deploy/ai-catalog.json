@@ -4,7 +4,7 @@
     {
       "identifier": "urn:air:goodnaturevibe.com:mcp:catalog",
       "type": "application/mcp-server-card+json",
-      "url": "https://catalog-mcp.goodnaturevibe.com/mcp/server-card"
+      "url": "https://catalog-mcp.goodnaturevibe.com/.well-known/mcp/server-card.json"
     }
   ]
 }

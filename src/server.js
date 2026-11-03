@@ -165,6 +165,11 @@ export function createServer({ api, bind = "127.0.0.1", port = 8325, logFile = n
       headers: { "content-type": "application/mcp-server-card+json", "cache-control": "public, max-age=3600", ...CORS },
       body: JSON.stringify(serverCard(), null, 2),
     }),
+    "/.well-known/mcp/server-card.json": () => ({
+      status: 200,
+      headers: { "content-type": "application/mcp-server-card+json", "cache-control": "public, max-age=3600", ...CORS },
+      body: JSON.stringify(serverCard(), null, 2),
+    }),
     "/.well-known/ai-catalog.json": () => ({
       status: 200,
       headers: { "content-type": "application/ai-catalog+json", "cache-control": "public, max-age=3600", ...CORS },
@@ -210,7 +215,7 @@ export function createServer({ api, bind = "127.0.0.1", port = 8325, logFile = n
         sendJson(res, 404, { error: "not_found" });
         return;
       }
-      if (req.method === "OPTIONS" && (pathname === "/mcp/server-card" || pathname === "/.well-known/ai-catalog.json")) {
+      if (req.method === "OPTIONS" && (pathname === "/mcp/server-card" || pathname === "/.well-known/mcp/server-card.json" || pathname === "/.well-known/ai-catalog.json")) {
         send(res, 204, { ...CORS, "access-control-max-age": "86400" });
         return;
       }

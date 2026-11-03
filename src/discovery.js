@@ -32,7 +32,7 @@ export function aiCatalog() {
       {
         identifier: "urn:air:goodnaturevibe.com:mcp:catalog",
         type: "application/mcp-server-card+json",
-        url: `${PUBLIC_ORIGIN}/mcp/server-card`,
+        url: `${PUBLIC_ORIGIN}/.well-known/mcp/server-card.json`,
       },
     ],
   };
@@ -50,7 +50,7 @@ export function llmsTxt() {
     "## Endpoint",
     "",
     `- MCP (Streamable HTTP, JSON-RPC over POST, no login): ${MCP_URL}`,
-    `- Server Card: ${PUBLIC_ORIGIN}/mcp/server-card`,
+    `- Server Card: ${PUBLIC_ORIGIN}/.well-known/mcp/server-card.json`,
     `- AI catalog: ${PUBLIC_ORIGIN}/.well-known/ai-catalog.json`,
     `- MCP Registry name: ${REGISTRY_NAME}`,
     "",
@@ -69,6 +69,7 @@ export function robotsTxt() {
     "User-agent: *",
     "Allow: /llms.txt",
     "Allow: /mcp/server-card",
+    "Allow: /.well-known/mcp/server-card.json",
     "Allow: /.well-known/ai-catalog.json",
     "Disallow: /mcp",
     "",

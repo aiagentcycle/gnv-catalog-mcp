@@ -5,8 +5,7 @@ import { assertSku } from "./sku.js";
 import { DEFAULT_STORE, STORES } from "./stores.js";
 import { PUBLIC_ORIGIN, VERSION } from "./version.js";
 
-// Zes leestools. Beschrijvingen, titels, annotaties en argumentdocumentatie zijn dezelfde als in de
-// commerce-MCP (com.goodnaturevibe/commerce), maar zonder agentId en zonder geheim: alles is publiek.
+// Six public read-only catalog and knowledge tools; no agent ID or secrets are required.
 const TOOL_ROWS = [
   ["gnv_catalog_search", "Search or list products from the public catalog feed, with category, brand and a short text. Discovery only, not the checkout price. NL: zoek of lijst producten uit de catalogusfeed; dit is geen betaalprijs.", [], { store: { type: "string" }, query: { type: "string" } }],
   ["gnv_product", "One product from the feed, with variants, a price range and the public product text. NL: één product uit de feed, met varianten, prijsrange en publieke tekst.", ["sku"], { store: { type: "string" }, sku: { type: "string" } }],
@@ -109,7 +108,7 @@ export function validateArgs(tool, args) {
   }
 }
 
-// De implementatie van de zes tools. Zelfde uitvoer als de leestools van de commerce-MCP.
+// Implementation of the six public read-only tools.
 export function createCatalogApi({ feed, options, knowledge, pages, origin, now = () => Date.now() }) {
   function stamp() {
     return new Date(now()).toISOString();

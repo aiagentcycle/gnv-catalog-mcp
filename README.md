@@ -6,11 +6,11 @@ AI agents can use it to search the shop's catalog, read one product with its var
 
 - **Endpoint:** `https://catalog-mcp.goodnaturevibe.com/mcp` (Streamable HTTP, JSON-RPC over POST, stateless, no login, read-only)
 - **MCP Registry:** `com.goodnaturevibe/catalog`
-- **Server Card:** <https://catalog-mcp.goodnaturevibe.com/mcp/server-card>
+- **Server Card:** <https://catalog-mcp.goodnaturevibe.com/.well-known/mcp/server-card.json> (also available at `/mcp/server-card`)
 - **AI catalog:** <https://catalog-mcp.goodnaturevibe.com/.well-known/ai-catalog.json>
 - **For crawlers and LLMs:** [`llms.txt`](https://catalog-mcp.goodnaturevibe.com/llms.txt)
 
-Ordering is not part of this server. Good Nature Vibe runs a separate commerce MCP server (`com.goodnaturevibe/commerce`) with cart and checkout; it only works for agents issued by the merchant and its code is not public.
+This server is strictly informational. It cannot create or modify accounts, carts, orders, payments or checkout sessions.
 
 ## Connect
 
@@ -47,7 +47,7 @@ Every tool takes an optional `store` (`nl` by default; also `en`, `fr`, `es`, `d
 | --- | --- |
 | `POST /mcp` | MCP JSON-RPC (`initialize`, `ping`, `tools/list`, `tools/call`; notifications get `202`). `GET /mcp` returns `405`. Browser requests are accepted only from a short list of origins |
 | `GET /healthz` | Status, version and the row counts of the feeds currently in cache |
-| `GET /mcp/server-card` | Server Card (`application/mcp-server-card+json`, CORS `*`) |
+| `GET /.well-known/mcp/server-card.json`, `/mcp/server-card` | Server Card (`application/mcp-server-card+json`, CORS `*`) |
 | `GET /.well-known/ai-catalog.json` | AI catalog entry pointing to the Server Card |
 | `GET /llms.txt`, `/robots.txt`, `/icon-192.png` | Plain-text description, robots rules, icon |
 
