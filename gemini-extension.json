@@ -1,0 +1,12 @@
+{
+  "name": "gnv-catalog",
+  "version": "0.1.0",
+  "description": "Read-only product and public knowledge search for the Good Nature Vibe shop.",
+  "mcpServers": {
+    "gnv-catalog": {
+      "httpUrl": "https://catalog-mcp.goodnaturevibe.com/mcp",
+      "timeout": 30000,
+      "description": "Public read-only catalog and knowledge server with no accounts, cart, orders, payments or checkout."
+    }
+  }
+}
