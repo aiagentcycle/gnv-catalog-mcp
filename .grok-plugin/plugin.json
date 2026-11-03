@@ -1,0 +1,12 @@
+{
+  "name": "gnv-catalog-mcp",
+  "description": "Read-only public Good Nature Vibe product catalog and shop knowledge through six hosted MCP tools.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Good Nature Vibe",
+    "email": "aiagentcycle@gmail.com"
+  },
+  "homepage": "https://goodnaturevibe.com",
+  "repository": "https://github.com/aiagentcycle/gnv-catalog-mcp",
+  "license": "MIT"
+}

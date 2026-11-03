@@ -1,0 +1,15 @@
+{
+  "name": "good-nature-vibe-plugins",
+  "description": "Official Good Nature Vibe plugin for public catalog and shop knowledge.",
+  "owner": {
+    "name": "Good Nature Vibe",
+    "email": "aiagentcycle@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "gnv-catalog-mcp",
+      "source": "./",
+      "description": "Read-only public Good Nature Vibe product catalog and shop knowledge through six hosted MCP tools."
+    }
+  ]
+}
