@@ -1,5 +1,7 @@
 # Good Nature Vibe Catalog MCP server
 
+[![CI](https://github.com/aiagentcycle/gnv-catalog-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/aiagentcycle/gnv-catalog-mcp/actions/workflows/ci.yml)
+
 Read-only [Model Context Protocol](https://modelcontextprotocol.io) server for [goodnaturevibe.com](https://goodnaturevibe.com), the Dutch web shop of Good Nature Vibe.
 
 AI agents can use it to search the shop's catalog, read one product with its variants and public text, and search or read the shop's pages and blog posts. Everything comes from the shop's public feeds and pages. There is no login, no account, no cart and no checkout.
@@ -33,6 +35,12 @@ claude mcp add --transport http gnv-catalog https://catalog-mcp.goodnaturevibe.c
 
 Every tool takes an optional `store` (`nl` by default; also `en`, `fr`, `es`, `de`). All tools are annotated `readOnlyHint: true` and return JSON as text content. Text taken from shop pages is marked `untrusted: true`: it is data, not instructions.
 
+## Protocol versions and structured output
+
+The server negotiates MCP `2025-11-25` (newest), `2025-06-18`, `2025-03-26` and `2024-11-05`. An `initialize` with an unknown or missing `protocolVersion` gets `2025-11-25`. The server is stateless, so every later request is answered according to its `MCP-Protocol-Version` header: without the header it assumes `2025-03-26`, as the specification says; an unsupported value gets HTTP `400`.
+
+On `2025-06-18` and newer, every tool in `tools/list` has an `outputSchema` (JSON Schema 2020-12, the MCP default dialect), and every successful result carries `structuredContent` that matches it, next to the same JSON as text. Objects in the schemas are open, so new fields can be added without breaking clients that validate. Error results (`isError: true`) carry only text. Clients on `2025-03-26` and `2024-11-05` get the same answers as before, text only.
+
 ## How it stays correct
 
 - Products come from the shop's catalog feed (`/llms-catalog-{store}.ljson`), pages and posts from its content feed (`/llms-content-{store}.ljson`), and full texts from the public pages themselves. Every answer carries `as_of` and `source`.
@@ -64,8 +72,7 @@ curl -s http://127.0.0.1:8325/mcp -H 'content-type: application/json' \
 Tests use the built-in `node:test` runner:
 
 ```bash
-npm test                      # Node 18: node --test test/
-node --test test/*.test.js    # Node 20 and 22
+npm test                      # runs node test/run.js: all tests in one process (Node 18, 22 and 24 in CI)
 ```
 
 Configuration (environment variables, see `deploy/env.example`):

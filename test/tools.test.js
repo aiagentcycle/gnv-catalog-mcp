@@ -3,7 +3,8 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { aiCatalog, DESCRIPTION, REGISTRY_NAME, serverCard } from "../src/discovery.js";
 import { CatalogError } from "../src/errors.js";
-import { argHash, PROTOCOL_VERSIONS, SERVER_INFO, TOOLS, validateArgs } from "../src/tools.js";
+import { argHash, ASSUMED_PROTOCOL_VERSION, PROTOCOL_VERSIONS, SERVER_INFO, TOOLS, toolsFor, validateArgs } from "../src/tools.js";
+import { VERSION } from "../src/version.js";
 
 const EXPECTED = ["gnv_catalog_search", "gnv_product", "gnv_knowledge_search", "gnv_knowledge", "gnv_profile", "gnv_contact"];
 const byName = Object.fromEntries(TOOLS.map((tool) => [tool.name, tool]));
@@ -47,10 +48,28 @@ test("titels, beschrijvingen en argumentdocumentatie zijn compleet", () => {
 test("serverinfo en protocolversies", () => {
   assert.equal(SERVER_INFO.name, "gnv-catalog");
   assert.equal(SERVER_INFO.title, "Good Nature Vibe Catalog");
-  assert.equal(SERVER_INFO.version, "0.1.0");
+  assert.equal(SERVER_INFO.version, VERSION);
+  assert.match(VERSION, /^\d+\.\d+\.\d+$/);
   assert.equal(SERVER_INFO.websiteUrl, "https://goodnaturevibe.com");
   assert.equal(SERVER_INFO.icons[0].src, "https://catalog-mcp.goodnaturevibe.com/icon-192.png");
-  assert.deepEqual(PROTOCOL_VERSIONS, ["2025-06-18", "2025-03-26", "2024-11-05"]);
+  assert.deepEqual(PROTOCOL_VERSIONS, ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"]);
+  assert.equal(ASSUMED_PROTOCOL_VERSION, "2025-03-26");
+});
+
+test("outputSchema: every tool has one, 2020-12 default dialect, open objects; hidden before 2025-06-18", () => {
+  for (const tool of TOOLS) {
+    assert.equal(tool.outputSchema?.type, "object", tool.name);
+    assert.equal(tool.outputSchema.$schema, undefined, tool.name);
+    assert.ok(Array.isArray(tool.outputSchema.required) && tool.outputSchema.required.length > 0, tool.name);
+    assert.doesNotMatch(JSON.stringify(tool.outputSchema), /"additionalProperties":false/, tool.name);
+    for (const key of tool.outputSchema.required) assert.ok(Object.hasOwn(tool.outputSchema.properties, key), `${tool.name}.${key}`);
+  }
+  for (const version of ["2025-11-25", "2025-06-18"]) assert.ok(toolsFor(version).every((tool) => tool.outputSchema));
+  for (const version of ["2025-03-26", "2024-11-05"]) {
+    const tools = toolsFor(version);
+    assert.ok(tools.every((tool) => !("outputSchema" in tool)), version);
+    assert.deepEqual(tools.map((tool) => Object.keys(tool)), TOOLS.map(() => ["name", "title", "description", "annotations", "inputSchema"]));
+  }
 });
 
 test("argumentvalidatie: onbekend, ontbrekend en verkeerd type", () => {

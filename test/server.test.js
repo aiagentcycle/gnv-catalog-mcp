@@ -6,7 +6,10 @@ import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { createRuntime, readConfig } from "../src/main.js";
 import { createServer, MAX_BODY } from "../src/server.js";
+import { TOOLS } from "../src/tools.js";
+import { VERSION } from "../src/version.js";
 import { fakeShop } from "./fixtures.js";
+import { validate } from "./json-schema.js";
 
 let server;
 let port;
@@ -29,11 +32,14 @@ after(async () => {
 
 function request({ method = "GET", path = "/", headers = {}, body = null }) {
   return new Promise((resolve, reject) => {
-    const req = http.request({ host: "127.0.0.1", port, method, path, headers }, (res) => {
+    // agent: false = one connection per request; the timeout turns a hang into a failing test instead of a stuck CI job.
+    const req = http.request({ host: "127.0.0.1", port, method, path, headers, agent: false, timeout: 10_000 }, (res) => {
       const chunks = [];
       res.on("data", (chunk) => chunks.push(chunk));
       res.on("end", () => resolve({ status: res.statusCode, headers: res.headers, body: Buffer.concat(chunks) }));
+      res.on("error", reject);
     });
+    req.on("timeout", () => req.destroy(new Error(`request timed out: ${method} ${path}`)));
     req.on("error", reject);
     if (body != null) req.write(body);
     req.end();
@@ -67,7 +73,7 @@ test("initialize, ping en tools/list", async () => {
   assert.equal(init.json.result.serverInfo.name, "gnv-catalog");
   assert.deepEqual(init.json.result.capabilities, { tools: { listChanged: false } });
   const unknownVersion = await rpc({ jsonrpc: "2.0", id: 2, method: "initialize", params: { protocolVersion: "1999-01-01" } });
-  assert.equal(unknownVersion.json.result.protocolVersion, "2025-06-18");
+  assert.equal(unknownVersion.json.result.protocolVersion, "2025-11-25");
   assert.deepEqual((await rpc({ jsonrpc: "2.0", id: 3, method: "ping" })).json.result, {});
   const list = await rpc({ jsonrpc: "2.0", id: 4, method: "tools/list" });
   assert.equal(list.json.result.tools.length, 6);
@@ -108,6 +114,92 @@ test("tools/call met een onbekende tool geeft een JSON-RPC-fout", async () => {
   assert.equal(reply.json.id, 20);
   assert.equal(reply.json.error.code, -32602);
   assert.equal(reply.json.result, undefined);
+});
+
+const SEARCH = { name: "gnv_catalog_search", arguments: { query: "olie" } };
+
+test("initialize without protocolVersion negotiates 2025-11-25 with title, icons, websiteUrl and description", async () => {
+  const init = await rpc({ jsonrpc: "2.0", id: 80, method: "initialize", params: { capabilities: {}, clientInfo: { name: "t", version: "1" } } });
+  assert.equal(init.status, 200);
+  assert.equal(init.json.result.protocolVersion, "2025-11-25");
+  const info = init.json.result.serverInfo;
+  assert.equal(info.title, "Good Nature Vibe Catalog");
+  assert.equal(info.websiteUrl, "https://goodnaturevibe.com");
+  assert.equal(info.icons[0].mimeType, "image/png");
+  assert.match(info.description, /read-only/);
+  assert.deepEqual(init.json.result.capabilities, { tools: { listChanged: false } });
+});
+
+// One test per supported version: a client that negotiated it and sends it as header.
+for (const [version, structured] of [["2025-11-25", true], ["2025-06-18", true], ["2025-03-26", false], ["2024-11-05", false]]) {
+  test(`protocol ${version}: initialize, tools/list and tools/call`, async () => {
+    const init = await rpc({ jsonrpc: "2.0", id: 81, method: "initialize", params: { protocolVersion: version, capabilities: {}, clientInfo: { name: "t", version: "1" } } });
+    assert.equal(init.json.result.protocolVersion, version);
+    assert.equal("description" in init.json.result.serverInfo, version === "2025-11-25");
+    const header = { "mcp-protocol-version": version };
+    assert.equal((await rpc({ jsonrpc: "2.0", method: "notifications/initialized" }, header)).status, 202);
+    const list = await rpc({ jsonrpc: "2.0", id: 82, method: "tools/list" }, header);
+    assert.equal(list.json.result.tools.length, 6);
+    assert.equal(list.json.result.tools.every((tool) => "outputSchema" in tool), structured);
+    const call = await rpc({ jsonrpc: "2.0", id: 83, method: "tools/call", params: SEARCH }, header);
+    assert.equal(call.status, 200);
+    assert.equal(call.json.result.isError, false);
+    assert.deepEqual(toolJson(call).products.map((row) => row.sku), ["2200"]);
+    if (structured) {
+      assert.deepEqual(call.json.result.structuredContent, toolJson(call));
+      const schema = list.json.result.tools.find((tool) => tool.name === "gnv_catalog_search").outputSchema;
+      assert.deepEqual(validate(schema, call.json.result.structuredContent), []);
+    } else {
+      // Exactly the 0.1 answer: text content only.
+      assert.deepEqual(Object.keys(call.json.result), ["content", "isError"]);
+      assert.deepEqual(list.json.result.tools.map((tool) => tool.name), TOOLS.map((tool) => tool.name));
+    }
+  });
+}
+
+test("no MCP-Protocol-Version header: treated as 2025-03-26", async () => {
+  const list = await rpc({ jsonrpc: "2.0", id: 84, method: "tools/list" });
+  assert.ok(list.json.result.tools.every((tool) => !("outputSchema" in tool)));
+  const call = await rpc({ jsonrpc: "2.0", id: 85, method: "tools/call", params: SEARCH });
+  assert.equal(call.json.result.structuredContent, undefined);
+});
+
+test("unsupported or invalid MCP-Protocol-Version header gives 400", async () => {
+  for (const value of ["1999-01-01", "2026-07-28", "latest", ""]) {
+    for (const message of [
+      { jsonrpc: "2.0", id: 86, method: "ping" },
+      { jsonrpc: "2.0", id: 87, method: "tools/list" },
+      { jsonrpc: "2.0", method: "notifications/initialized" },
+    ]) {
+      const res = await rpc(message, { "mcp-protocol-version": value });
+      assert.equal(res.status, 400, `${value} ${message.method}`);
+      assert.equal(res.json.error.code, -32600);
+      assert.deepEqual(res.json.error.data.supported, ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"]);
+    }
+    // initialize negotiates the version in its body, so a client that already sends a (newer) header
+    // there is not turned away; it gets the newest version this server supports.
+    const init = await rpc({ jsonrpc: "2.0", id: 89, method: "initialize", params: { protocolVersion: "2026-07-28" } }, { "mcp-protocol-version": value });
+    assert.equal(init.status, 200, `${value} initialize`);
+    assert.equal(init.json.result.protocolVersion, "2025-11-25");
+  }
+  // Origin and method checks come first.
+  assert.equal((await request({ path: "/mcp", headers: { "mcp-protocol-version": "1999-01-01" } })).status, 405);
+  assert.equal((await rpc({ jsonrpc: "2.0", id: 88, method: "ping" }, { origin: "https://evil.example", "mcp-protocol-version": "1999-01-01" })).status, 403);
+});
+
+test("2025-11-25: errors stay errors; tool errors carry no structuredContent", async () => {
+  const header = { "mcp-protocol-version": "2025-11-25" };
+  const missing = await rpc({ jsonrpc: "2.0", id: 90, method: "tools/call", params: { name: "gnv_product", arguments: { sku: "9999" } } }, header);
+  assert.equal(missing.json.result.isError, true);
+  assert.equal(missing.json.result.structuredContent, undefined);
+  assert.equal(toolJson(missing).code, "unknown_sku");
+  // Input validation errors are tool execution errors (isError), not protocol errors.
+  const bad = await rpc({ jsonrpc: "2.0", id: 91, method: "tools/call", params: { name: "gnv_product", arguments: { sku: 1100 } } }, header);
+  assert.equal(bad.json.result.isError, true);
+  assert.equal(toolJson(bad).code, "bad_args");
+  // An unknown tool stays a JSON-RPC protocol error.
+  const unknown = await rpc({ jsonrpc: "2.0", id: 92, method: "tools/call", params: { name: "gnv_not_a_tool", arguments: {} } }, header);
+  assert.equal(unknown.json.error.code, -32602);
 });
 
 test("argumentvalidatie: agentId, onbekend argument, ontbrekend en verkeerd type", async () => {
@@ -153,7 +245,7 @@ test("/healthz noemt versie en de feed-aantallen uit de cache", async () => {
   const body = JSON.parse(res.body);
   assert.equal(body.ok, true);
   assert.equal(body.status, "ok");
-  assert.equal(body.version, "0.1.0");
+  assert.equal(body.version, VERSION);
   assert.equal(body.feeds.catalog.nl.rows, 2);
   assert.equal(res.headers["cache-control"], "no-store");
 });

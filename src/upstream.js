@@ -34,12 +34,20 @@ export async function fetchUpstream(fetchImpl, url, options, max) {
       redirect: "manual",
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
+    const text = await readUpstream(response, max);
+    return { response, text };
   } catch (error) {
-    if (error?.name === "TimeoutError" || error?.name === "AbortError") {
-      throw new CatalogError("upstream_timeout", "upstream gaf geen antwoord", 504);
-    }
-    throw error;
+    throw upstreamError(error);
   }
-  const text = await readUpstream(response, max);
-  return { response, text };
+}
+
+// Every way the shop can fail to answer becomes a coded error for the client, never a bare crash:
+// a timeout (also while the body is still coming in) or a network failure such as a refused or reset connection.
+function upstreamError(error) {
+  if (error instanceof CatalogError) return error;
+  if (error?.name === "TimeoutError" || error?.name === "AbortError") {
+    return new CatalogError("upstream_timeout", "upstream gaf geen antwoord", 504);
+  }
+  console.error(`upstream_failed ${error?.cause?.code ?? error?.code ?? error?.name ?? "unknown"}`);
+  return new CatalogError("upstream_unavailable", "upstream is niet bereikbaar", 502);
 }

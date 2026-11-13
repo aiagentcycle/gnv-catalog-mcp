@@ -1,23 +1,63 @@
 #!/bin/bash
-# Copy the installed code from /opt/gnv-catalog-mcp/app into a clean public repository and commit it.
+# Copy the installed code from /opt/gnv-catalog-mcp/app into the public repository and commit it.
 # No server history goes along: one clean commit per version, tagged v<version>.
 # Push only with --push:  ./publish-github.sh --push
 # Optional: MSG="Docs" for a commit on an already tagged version.
+#
+# GitHub may be ahead of this host (a file added or edited on GitHub). Therefore:
+# - the copy never deletes: files that exist only in the public repository stay there;
+# - with --push the public copy is first brought up to date with a fast-forward from origin/main.
+#   If GitHub changed a file that also exists in the app with other content, the script stops
+#   without merging or committing, until that change has been taken over into the app;
+# - every failure of fetch, merge or push ends with exit 1.
 set -euo pipefail
 APP=/opt/gnv-catalog-mcp/app
 PUB=/opt/gnv-catalog-mcp/public
 REMOTE=git@github-gnv-catalog:aiagentcycle/gnv-catalog-mcp.git
 GIT_NAME=${GIT_NAME:-AIAgentCycle}
 GIT_EMAIL=${GIT_EMAIL:-info@aiagentcycle.com}
+PUSH=0
+[ "${1:-}" = "--push" ] && PUSH=1
 VERSION=$(sed -nE 's/^[[:space:]]*"version":[[:space:]]*"([^"]+)".*/\1/p' "$APP/package.json" | head -n 1)
 [ -n "$VERSION" ] || { echo "no version in package.json"; exit 1; }
+
+fail() { echo "FAILED: $*" >&2; exit 1; }
 
 if [ ! -d "$PUB/.git" ]; then
   git init -q -b main "$PUB"
   git -C "$PUB" remote add origin "$REMOTE"
 fi
-rsync -a --delete --exclude .git --exclude node_modules "$APP/" "$PUB/"
 cd "$PUB"
+
+if [ "$PUSH" = 1 ]; then
+  git fetch -q origin || fail "git fetch origin"
+  if git rev-parse -q --verify refs/remotes/origin/main >/dev/null; then
+    # Files GitHub changed since the last common commit (or all its files for a fresh copy).
+    if git rev-parse -q --verify HEAD >/dev/null; then
+      changed=$(git diff --name-only HEAD...origin/main) || fail "git diff HEAD...origin/main"
+    else
+      changed=$(git ls-tree -r --name-only origin/main) || fail "git ls-tree origin/main"
+    fi
+    conflicts=()
+    while IFS= read -r file; do
+      [ -n "$file" ] || continue
+      [ -f "$APP/$file" ] || continue
+      # Deleted on GitHub, or other content than in the app: the copy would silently undo it.
+      if ! git cat-file -e "origin/main:$file" 2>/dev/null || ! git show "origin/main:$file" | cmp -s - "$APP/$file"; then
+        conflicts+=("$file")
+      fi
+    done <<< "$changed"
+    if [ "${#conflicts[@]}" -gt 0 ]; then
+      echo "REFUSED: these files were changed on GitHub and differ from $APP:" >&2
+      printf '  %s\n' "${conflicts[@]}" >&2
+      echo "Take these changes over into the app first, then run this script again. Nothing was merged or committed." >&2
+      exit 1
+    fi
+    git merge -q --ff-only origin/main || fail "fast-forward to origin/main is not possible; the public copy has diverged from GitHub"
+  fi
+fi
+
+rsync -a --exclude .git --exclude node_modules "$APP/" "$PUB/"
 
 # Last safety net: nothing that looks like a key, a token or an address of this host.
 # Patterns are built at runtime so the addresses never appear in the repository itself.
@@ -47,7 +87,12 @@ if git diff --cached --quiet; then echo "nothing new (v$VERSION)"; else
   fi
 fi
 git log --oneline -1
-if [ "${1:-}" = "--push" ]; then
-  git push -q origin main --tags && echo "pushed to github.com/aiagentcycle/gnv-catalog-mcp"
+
+if [ "$PUSH" = 1 ]; then
+  # Also pushes a commit or tag left behind by an earlier failed push.
+  if ! git push -q origin main --tags; then
+    fail "git push was refused; nothing reached GitHub. Run with --push again after fixing the cause"
+  fi
+  echo "pushed to github.com/aiagentcycle/gnv-catalog-mcp"
 fi
-true
+exit 0

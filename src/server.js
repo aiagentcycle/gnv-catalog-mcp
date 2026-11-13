@@ -3,7 +3,7 @@ import { appendFile } from "node:fs/promises";
 import http from "node:http";
 import { aiCatalog, llmsTxt, robotsTxt, serverCard } from "./discovery.js";
 import { CatalogError } from "./errors.js";
-import { PROTOCOL_VERSIONS, SERVER_INFO, TOOLS, argHash, redact, toolContent, validateArgs } from "./tools.js";
+import { ASSUMED_PROTOCOL_VERSION, PROTOCOL_VERSIONS, SERVER_DESCRIPTION, SERVER_INFO, TOOLS, argHash, redact, toolResult, toolsFor, validateArgs } from "./tools.js";
 import { PUBLIC_ORIGIN } from "./version.js";
 
 export const MAX_BODY = 64 * 1024;
@@ -36,7 +36,9 @@ const CORS = {
   "access-control-allow-headers": "Content-Type, If-None-Match",
 };
 
-export async function dispatch(api, message, log) {
+// Stateless: the protocol version of a request comes from its MCP-Protocol-Version header
+// (see protocolVersionOf), not from an earlier initialize.
+export async function dispatch(api, message, log, protocolVersion = ASSUMED_PROTOCOL_VERSION) {
   if (!message || typeof message !== "object" || message.jsonrpc !== "2.0" || Array.isArray(message)) {
     return { jsonrpc: "2.0", id: message?.id ?? null, error: { code: -32600, message: "invalid request" } };
   }
@@ -44,20 +46,21 @@ export async function dispatch(api, message, log) {
   if (typeof message.method === "string" && message.method.startsWith("notifications/")) return null;
   if (message.method === "initialize") {
     const requested = message.params?.protocolVersion;
-    const protocolVersion = PROTOCOL_VERSIONS.includes(requested) ? requested : PROTOCOL_VERSIONS[0];
+    const negotiated = PROTOCOL_VERSIONS.includes(requested) ? requested : PROTOCOL_VERSIONS[0];
+    const serverInfo = negotiated >= "2025-11-25" ? { ...SERVER_INFO, description: SERVER_DESCRIPTION } : SERVER_INFO;
     return {
       jsonrpc: "2.0",
       id: message.id,
       result: {
-        protocolVersion,
+        protocolVersion: negotiated,
         capabilities: { tools: { listChanged: false } },
-        serverInfo: SERVER_INFO,
+        serverInfo,
         instructions: INSTRUCTIONS,
       },
     };
   }
   if (message.method === "ping") return { jsonrpc: "2.0", id: message.id, result: {} };
-  if (message.method === "tools/list") return { jsonrpc: "2.0", id: message.id, result: { tools: TOOLS } };
+  if (message.method === "tools/list") return { jsonrpc: "2.0", id: message.id, result: { tools: toolsFor(protocolVersion) } };
   if (message.method === "tools/call") {
     const name = message.params?.name;
     const args = message.params?.arguments ?? {};
@@ -71,7 +74,7 @@ export async function dispatch(api, message, log) {
       validateArgs(tool, args);
       const data = await api[name]({ ...args });
       await log({ at: new Date().toISOString(), tool: name, ok: true, ms: Date.now() - started, argHash: argHash(args) });
-      return { jsonrpc: "2.0", id: message.id, result: { content: toolContent(data), isError: false } };
+      return { jsonrpc: "2.0", id: message.id, result: toolResult(data, protocolVersion) };
     } catch (error) {
       const payload = error instanceof CatalogError
         ? { code: error.code, message: error.message, ...(error.details ? { details: error.details } : {}) }
@@ -85,6 +88,15 @@ export async function dispatch(api, message, log) {
     }
   }
   return { jsonrpc: "2.0", id: message.id ?? null, error: { code: -32601, message: "method not found" } };
+}
+
+// Protocol version of one HTTP request. No header: the version the spec says to assume (2025-03-26).
+// A header with an unsupported or invalid value returns null, which the caller answers with 400.
+export function protocolVersionOf(headers) {
+  const value = headers["mcp-protocol-version"];
+  if (value == null) return ASSUMED_PROTOCOL_VERSION;
+  const version = String(value).trim();
+  return PROTOCOL_VERSIONS.includes(version) ? version : null;
 }
 
 // Leest hooguit MAX_BODY bytes. Wat erboven komt wordt gelezen en weggegooid (begrensd door requestTimeout),
@@ -141,7 +153,21 @@ export function createServer({ api, bind = "127.0.0.1", port = 8325, logFile = n
       sendJson(res, 400, { jsonrpc: "2.0", id: null, error: { code: -32700, message: "parse error" } });
       return;
     }
-    const reply = await dispatch(api, message, log);
+    // initialize negotiates the version in its body; the header only binds the requests after it. A client
+    // that already sends a (newer) header on initialize is answered with the newest version supported here,
+    // as the reference SDKs do, instead of being turned away.
+    const isInitialize = message && typeof message === "object" && message.method === "initialize";
+    const protocolVersion = protocolVersionOf(req.headers) ?? (isInitialize ? ASSUMED_PROTOCOL_VERSION : null);
+    if (!protocolVersion) {
+      // Transports, Protocol Version Header: an invalid or unsupported version MUST get 400 Bad Request.
+      sendJson(res, 400, {
+        jsonrpc: "2.0",
+        id: null,
+        error: { code: -32600, message: "unsupported MCP-Protocol-Version", data: { supported: PROTOCOL_VERSIONS } },
+      });
+      return;
+    }
+    const reply = await dispatch(api, message, log, protocolVersion);
     if (reply == null) {
       send(res, 202, {});
       return;
@@ -236,6 +262,13 @@ export function createServer({ api, bind = "127.0.0.1", port = 8325, logFile = n
   server.headersTimeout = 10_000;
   server.keepAliveTimeout = 5_000;
   server.maxHeadersCount = 64;
+  // Own bookkeeping of open sockets: on Node 18, server.close() can wait forever on a connection that
+  // closeAllConnections() no longer lists (seen as a test run that never exits). close() destroys them all.
+  const sockets = new Set();
+  server.on("connection", (socket) => {
+    sockets.add(socket);
+    socket.once("close", () => sockets.delete(socket));
+  });
 
   return {
     server,
@@ -249,6 +282,7 @@ export function createServer({ api, bind = "127.0.0.1", port = 8325, logFile = n
       return new Promise((resolve, reject) => {
         server.close((error) => (error ? reject(error) : resolve()));
         server.closeAllConnections?.();
+        for (const socket of sockets) socket.destroy();
       });
     },
   };

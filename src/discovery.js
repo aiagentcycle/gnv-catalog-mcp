@@ -1,9 +1,9 @@
-import { PROTOCOL_VERSIONS, SERVER_INFO, TOOLS } from "./tools.js";
+import { PROTOCOL_VERSIONS, SERVER_DESCRIPTION, SERVER_INFO, TOOLS } from "./tools.js";
 import { PUBLIC_ORIGIN } from "./version.js";
 
 // Vindbaarheidsdocumenten. deploy/server.json en deploy/ai-catalog.json moeten hiermee overeenkomen (zie test).
 export const REGISTRY_NAME = "com.goodnaturevibe/catalog";
-export const DESCRIPTION = "Public read-only catalog and knowledge of the Good Nature Vibe shop. No login.";
+export const DESCRIPTION = SERVER_DESCRIPTION;
 export const MCP_URL = `${PUBLIC_ORIGIN}/mcp`;
 
 export function serverCard() {
@@ -53,6 +53,8 @@ export function llmsTxt() {
     `- Server Card: ${PUBLIC_ORIGIN}/.well-known/mcp/server-card.json`,
     `- AI catalog: ${PUBLIC_ORIGIN}/.well-known/ai-catalog.json`,
     `- MCP Registry name: ${REGISTRY_NAME}`,
+    `- MCP protocol versions: ${PROTOCOL_VERSIONS.join(", ")} (newest first)`,
+    "- Structured output: every tool has an outputSchema; results carry structuredContent next to the JSON text (protocol 2025-06-18 and newer)",
     "",
     "## Tools",
     "",

@@ -3,6 +3,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { VERSION } from "../src/version.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const load = (path) => JSON.parse(readFileSync(resolve(root, path), "utf8"));
@@ -29,8 +30,6 @@ test("portable plugin manifests only connect to the public read-only catalog", (
   const marketplace = load(".claude-plugin/marketplace.json");
   assert.equal(claude.name, "gnv-catalog-mcp");
   assert.equal(grok.name, "gnv-catalog-mcp");
-  assert.equal(claude.version, "0.1.0");
-  assert.equal(grok.version, "0.1.0");
   assert.equal(claude.license, "MIT");
   assert.equal(grok.license, "MIT");
   assert.deepEqual(marketplace.plugins, [
@@ -41,6 +40,26 @@ test("portable plugin manifests only connect to the public read-only catalog", (
     },
   ]);
   assert.ok(existsSync(resolve(root, claude.icon)));
+});
+
+// Every file that carries the release version. A release bump rewrites the first version match in each.
+const VERSION_FILES = [
+  "package.json",
+  "deploy/server.json",
+  "gemini-extension.json",
+  ".claude-plugin/plugin.json",
+  ".grok-plugin/plugin.json",
+  "lhm.plugin.json",
+];
+
+test("all version files carry VERSION from src/version.js, as their first version field", () => {
+  assert.match(VERSION, /^\d+\.\d+\.\d+$/);
+  const firstMatch = /(__version__ = |VERSION = |"version": *|\bversion: *)"([^"]*)"/;
+  for (const path of VERSION_FILES) {
+    assert.equal(load(path).version, VERSION, path);
+    assert.equal(firstMatch.exec(readFileSync(resolve(root, path), "utf8"))?.[2], VERSION, `${path}: first match`);
+  }
+  assert.equal(firstMatch.exec(readFileSync(resolve(root, "src/version.js"), "utf8"))?.[2], VERSION);
 });
 
 test("plugin manifests contain no secret or private commerce configuration", () => {

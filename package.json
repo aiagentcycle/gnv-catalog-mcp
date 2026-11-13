@@ -1,6 +1,6 @@
 {
   "name": "gnv-catalog-mcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Public read-only MCP server for the Good Nature Vibe shop catalog and knowledge.",
   "type": "module",
   "private": true,
@@ -11,8 +11,8 @@
   },
   "scripts": {
     "start": "node src/main.js",
-    "test": "node --test test/*.test.js",
-    "test:node22": "node --test test/*.test.js"
+    "test": "node test/run.js",
+    "test:files": "node --test test/*.test.js"
   },
   "repository": {
     "type": "git",

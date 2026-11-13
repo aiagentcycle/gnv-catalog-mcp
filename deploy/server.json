@@ -3,7 +3,7 @@
   "name": "com.goodnaturevibe/catalog",
   "title": "Good Nature Vibe Catalog",
   "description": "Public read-only catalog and knowledge of the Good Nature Vibe shop. No login.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "websiteUrl": "https://goodnaturevibe.com",
   "repository": {
     "url": "https://github.com/aiagentcycle/gnv-catalog-mcp",

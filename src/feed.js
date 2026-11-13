@@ -36,16 +36,22 @@ function plainList(value) {
     .slice(0, 12);
 }
 
+// Free-text feed fields are a string or null, so the answer always matches the published outputSchema.
+function textOrNull(value) {
+  return typeof value === "string" ? value : null;
+}
+
 function mapRow(raw, originHost) {
+  if (typeof raw.sku !== "string" || !raw.sku) throw new CatalogError("bad_row", "rij zonder sku", 502);
   return {
     sku: raw.sku,
-    name: raw.name,
+    name: textOrNull(raw.name),
     price_cents: eurosToCents(raw.price),
     price_max_cents: raw.price_max == null ? null : eurosToCents(raw.price_max),
-    currency: raw.currency,
-    availability: raw.availability,
+    currency: textOrNull(raw.currency),
+    availability: textOrNull(raw.availability),
     store: raw.store,
-    product_type: raw.product_type,
+    product_type: textOrNull(raw.product_type),
     path: safePath(raw.url, originHost),
     description_text: htmlToText(raw.description ?? "").slice(0, 800),
     categories: plainList(raw.categories),
